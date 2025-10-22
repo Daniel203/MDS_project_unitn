@@ -2,8 +2,11 @@ from cv2.typing import MatLike
 import numpy as np
 import cv2
 import os
+from embedding_code import embed_watermark
 from wpsnr import wpsnr
-from embed import embed_watermark, EmbedParameters, EmbeddingStrategy
+# from embed import embed_watermark, EmbedParameters, EmbeddingStrategy
+from embed import EmbedParameters, EmbeddingStrategy
+
 from detect import extract_watermark, similarity
 from attack import jpeg_compression
 
@@ -17,8 +20,14 @@ def embedding(input1: str, input2: str) -> MatLike | None:
 
     watermark = np.load(input2)
     params = EmbedParameters(0.05, EmbeddingStrategy.ADDITIVE)
-    output1 = embed_watermark(image, watermark, params)
-    return output1
+    # output1 = embed_watermark(image, watermark, params)
+    wm_img, wm_seq, _  = embed_watermark(input1)
+    base, ext = os.path.splitext(input1)
+    out_path = f"{base}_wm{ext}"
+    cv2.imwrite(out_path, wm_img)
+
+    
+    return wm_img
 
 
 def detection(input1: str, input2: str, input3: str) -> tuple[int, float]:
@@ -57,6 +66,7 @@ def main():
         if filename.lower().endswith(".bmp"):
             image_path = os.path.join(input_dir, filename)
             watermarked_image = embedding(image_path, watermark_name)
+
             if watermarked_image is None:
                 print("Cannot find the watermarked image!")
                 continue
@@ -75,7 +85,7 @@ def main():
             wpsnr_value = wpsnr(image, watermarked_image)
             print(f"WPSNR embedded image: {wpsnr_value:.4f}")
 
-            attacked_image = jpeg_compression(watermarked_image, 50)
+            attacked_image = jpeg_compression(watermarked_image, 80)
             if attacked_image is None:
                 continue
 
