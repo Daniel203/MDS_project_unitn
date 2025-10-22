@@ -1,15 +1,19 @@
 from cv2.typing import MatLike
-import numpy as np 
+import numpy as np
 import cv2
-from embed import embed_watermark, EmbedParameters, EmbeddingStrategy
-from detect import extract_watermark
 import os
 from wpsnr import wpsnr
+from embed import embed_watermark, EmbedParameters, EmbeddingStrategy
+from detect import extract_watermark, similarity
+from attack import jpeg_compression
 
-def embedding(input1: str, input2: str) -> MatLike|None:
+THRESH = 0.55
+
+
+def embedding(input1: str, input2: str) -> MatLike | None:
     image = cv2.imread(input1, cv2.IMREAD_GRAYSCALE)
     if image is None:
-        return None 
+        return None
 
     watermark = np.load(input2)
     params = EmbedParameters(0.05, EmbeddingStrategy.ADDITIVE)
@@ -18,22 +22,29 @@ def embedding(input1: str, input2: str) -> MatLike|None:
 
 
 def detection(input1: str, input2: str, input3: str) -> tuple[int, float]:
-    img_or = cv2.imread(input1, cv2.IMREAD_GRAYSCALE)
-    img_wm = cv2.imread(input2, cv2.IMREAD_GRAYSCALE)
-    img_at = cv2.imread(input3, cv2.IMREAD_GRAYSCALE)
+    image_original = cv2.imread(input1, cv2.IMREAD_GRAYSCALE)
+    image_watermarked = cv2.imread(input2, cv2.IMREAD_GRAYSCALE)
+    image_attacked = cv2.imread(input3, cv2.IMREAD_GRAYSCALE)
+
+    if image_original is None:
+        raise ValueError(f"Failed to load original image from {input1}")
+    if image_watermarked is None:
+        raise ValueError(f"Failed to load watermarked image from {input2}")
+    if image_attacked is None:
+        raise ValueError(f"Failed to load attacked image from {input3}")
 
     params = EmbedParameters(0.05, EmbeddingStrategy.ADDITIVE)
 
-    wm_or = extract_watermark(img_wm, img_or, params)
-    wm_ex = extract_watermark(img_at, img_or, params)
+    watermark_original = extract_watermark(image_watermarked, image_original, params)
+    watermark_extracted = extract_watermark(image_attacked, image_original, params)
 
-    # TODO: impl similarity
-    # output1 = similarity(wm_or, wm_ex) > THRESH
-    # output1 = 1 if output1 else 0
-    # output2 = wPSNR(img_wm, img_at)
+
+    output1 = similarity(watermark_original, watermark_extracted) > THRESH
+    output1 = 1 if output1 else 0
+    output2 = wpsnr(image_watermarked, image_attacked)
 
     # return output1, output2
-    return 0, 0.0 
+    return output1, output2
 
 
 def main():
@@ -47,23 +58,38 @@ def main():
             image_path = os.path.join(input_dir, filename)
             watermarked_image = embedding(image_path, watermark_name)
             if watermarked_image is None:
-                print("Cannot find the watermarked image!");
+                print("Cannot find the watermarked image!")
                 continue
 
             # Save with modified name
             name, _ = os.path.splitext(filename)
-            output_path = os.path.join(output_dir, f"{name}_watermarked.bmp")
-            cv2.imwrite(output_path, watermarked_image)
-            print(f"Watermarked image saved: {output_path}")
+            output_path_watermarked = os.path.join(output_dir, f"{name}_watermarked.bmp")
+            cv2.imwrite(output_path_watermarked, watermarked_image)
+            print(f"Watermarked image saved: {output_path_watermarked}")
 
             # Calculate and print WPSNR
             image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
             if image is None:
-                return 
+                continue
 
             wpsnr_value = wpsnr(image, watermarked_image)
-            print(f"WPSNR after: {wpsnr_value:.4f}\n")
-    
+            print(f"WPSNR embedded image: {wpsnr_value:.4f}")
+
+            attacked_image = jpeg_compression(watermarked_image, 50)
+            if attacked_image is None:
+                continue
+
+            # save the image as 
+            output_path_attacked = os.path.join(output_dir, f"{name}_attacked.bmp")
+            cv2.imwrite(output_path_attacked, attacked_image)
+            print(f"Attacked image saved: {output_path_attacked}")
+
+            detect1, detect2 = detection(image_path, output_path_watermarked, output_path_attacked)
+
+            print(f"watermark detected: {'yes' if detect1 == 1 else 'no'}")
+            print(f"WPSNR attacked image: {detect2}")
+            print()
+
 
 if __name__ == "__main__":
     main()
