@@ -1,6 +1,5 @@
 import numpy as np
 from scipy.signal import convolve2d
-import cv2
 
 def _csffun(u, v):
     """
@@ -135,15 +134,3 @@ def awgn(img, std, seed):
   attacked = img + np.random.normal(mean, std, img.shape)
   attacked = np.clip(attacked, 0, 255)
   return attacked
-
-# --- Example Usage ---
-if __name__ == '__main__':
-
-    im = (cv2.imread('0092.bmp', 0))
-    img_Att = awgn(im, 25, 42)
-    
-    
-    # Calculate WPSNR
-    wpsnr_value = wpsnr(im, np.uint8(img_Att))
-    
-    print(f"Original and Distorted Image WPSNR: {wpsnr_value:.4f} dB")
