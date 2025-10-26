@@ -4,7 +4,7 @@ MARK_SIZE = 1024
 ALPHA = 1.0
 """The alpha value used when embedding and decoding"""
 
-THRESH = 0.06
+THRESH = 0.54
 """Threshold value used to determine if a detected watermark is valid or not"""
 
 INPUT_DIR = "input"

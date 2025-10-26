@@ -52,4 +52,8 @@ def similarity(watermark_1, watermarked_2):
         np.sqrt(np.sum(np.multiply(watermark_1, watermark_1)))
         * np.sqrt(np.sum(np.multiply(watermarked_2, watermarked_2)))
     )
-    return s
+
+    # Rescales the result from [-1, 1] to [0, 1]
+    res = (s + 1) / 2
+    return res
+    # return s

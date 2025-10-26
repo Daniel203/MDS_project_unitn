@@ -292,9 +292,7 @@ def test_false_positives(n_images_to_test=5, n_fakes_per_image=1000):
             # Check similarity
             score = similarity(watermark_fake, watermark_extracted)
 
-            # --- START OF MODIFICATION ---
             all_fake_scores.append(score)  # Store the score
-            # --- END OF MODIFICATION ---
 
             # If the random guess scores higher than our threshold, it's a False Positive
             if score > THRESH:
@@ -384,7 +382,7 @@ def test_attacks_manually():
 
 
 if __name__ == "__main__":
-    # full_workflow_parallel(max_workers=10)
-    test_attacks_manually()
+    full_workflow_parallel(max_workers=10)
+    # test_attacks_manually()
     # roc_curve()
     # test_false_positives(n_images_to_test=100)

@@ -9,7 +9,7 @@ from detect import extract_watermark, similarity
 from embed import EmbeddingStrategy, EmbedParameters, embed_watermark
 from constraints import ALPHA, MARK_SIZE
 
-N_ATTACKS = 2
+N_ATTACKS = 10
 """The number of randomized attacks to make per every image"""
 
 
