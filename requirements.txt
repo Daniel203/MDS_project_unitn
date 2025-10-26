@@ -9,3 +9,4 @@ ipykernel
 common
 pycompile
 scikit-image
+PyWavelets
