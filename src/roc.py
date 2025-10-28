@@ -4,13 +4,18 @@ from cv2.typing import MatLike
 from numpy.typing import NDArray
 from sklearn.metrics import auc, roc_curve
 
-from attack import randomized_attack
-from detect import extract_watermark, similarity
-from embed import EmbeddingStrategy, EmbedParameters, embed_watermark
-from constraints import ALPHA, MARK_SIZE
+from attacks import randomized_attack
+from detection_ACME import extract_watermark, similarity
+from embedding import embed_watermark
 
 N_ATTACKS = 10
 """The number of randomized attacks to make per every image"""
+
+MARK_SIZE = 1024
+"""The size of the watermark. It's 1024 as defined in the challange constraints"""
+
+ALPHA = 1.0
+"""The alpha value used when embedding and decoding"""
 
 
 
@@ -28,13 +33,10 @@ def __get_labels_and_score_arrays(
     for image in images:
         for _ in range(N_ATTACKS):
             # Embed the watermark with real embedding
-            params = EmbedParameters(ALPHA, EmbeddingStrategy.ADDITIVE)
+            params = [ALPHA, "additive"]
             image_watermarked = embed_watermark(image, watermark, params)
 
             # Fake watermark for H0
-            # watermark_fake = np.random.uniform(0.0, 1.0, MARK_SIZE)
-            # watermark_fake = np.uint8(np.rint(watermark_fake))
-            # watermark_fake = np.random.uniform(-1.0, 1.0, MARK_SIZE)
             watermark_fake = np.random.choice([-1.0, 1.0], MARK_SIZE)
 
             # Random attack
@@ -92,9 +94,8 @@ def __generate_plot_and_save_on_file(
     return
 
 
-def generate_roc_curve_plot(images: list[MatLike], watermark: NDArray[np.uint8]):
+def roc(images: list[MatLike], watermark: NDArray[np.uint8]):
     scores, labels = __get_labels_and_score_arrays(images, watermark)
-    print("\n")
     __generate_plot_and_save_on_file(scores, labels)
 
     return
