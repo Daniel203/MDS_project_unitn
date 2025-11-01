@@ -26,13 +26,11 @@ def attack_worker(
     This worker will run until its parent process is terminated.
     It finds candidate solutions and puts them in the queue.
     """
-    print(f"[Worker {worker_id}] Started.")
     np.random.seed(os.getpid() + int(time.time()))
 
     while True:
         image_to_attack = cv2.imread(watermarked_image, cv2.IMREAD_GRAYSCALE)
         if image_to_attack is None:
-            print(f"[Worker {worker_id}] Error: Could not read image.")
             time.sleep(1)
             continue
 
@@ -81,13 +79,9 @@ def attack_worker(
                 original_image_path, watermarked_image, attacked_image_path
             )
 
-            print(
-                f"[Worker {worker_id}] Att: {param_str}, WPSNR: {wpsnr:.2f}, Det: {detected}"
-            )
             image_to_attack = attacked_image
 
             if detected == 0 and wpsnr >= 35:
-                print(f"🎉 [Worker {worker_id}] Found a candidate! WPSNR: {wpsnr:.2f}")
                 solution_filename = f"ACME_{attacked_group}_{original_image_name}_{worker_id}_{time.time_ns()}.bmp"
                 solution_path = os.path.join(output_path, solution_filename)
 
@@ -132,9 +126,6 @@ def run_parallel_search(
     if not os.path.exists(watermarked_image_path):
         raise ValueError("Watermarked image not found")
 
-    print(f"Starting {num_workers} parallel workers...")
-    print(f"Searching for the optimal attack for {search_duration_seconds} seconds.")
-
     with mp.Manager() as manager:
         result_queue = manager.Queue()
         processes = []
@@ -158,19 +149,12 @@ def run_parallel_search(
         start_time = time.time()
         while (time.time() - start_time) < search_duration_seconds:
             time.sleep(1)
-            print(
-                f"Searching... {int(time.time() - start_time)}s / {search_duration_seconds}s"
-            )
-
-        print("\n--- TIME'S UP ---")
-        print("Terminating workers and collecting results...")
 
         for p in processes:
             if p.is_alive():
                 p.terminate()
                 p.join()
 
-        print("Cleaning up temporary worker files...")
         for i in range(num_workers):
             temp_file = f"{output_path}/worker_ACME_{attacked_group}_{original_image_name}_{i}.bmp"
             if os.path.exists(temp_file):
@@ -178,8 +162,6 @@ def run_parallel_search(
                     os.remove(temp_file)
                 except Exception as e:
                     print(f"Warning: Could not remove temp file {temp_file}: {e}")
-
-        print("All workers stopped.")
 
         all_solutions = []
         while not result_queue.empty():
@@ -256,27 +238,98 @@ def save_solutions_csv(top_solutions, output_filename):
         print(f"Error: Could not save CSV file. {e}")
 
 
+def get_images_to_attack(scan_dir="images_to_attack", base_output_dir="output"):
+    """
+    Scans a directory for subfolders (groups) and finds paired
+    raw and watermarked images within them.
+
+    Assumes a file structure like:
+    images_to_attack/
+    └── group_A/
+        ├── 0001_raw.bmp
+        ├── 0001_w.bmp
+        └── 0002_raw.bmp
+        └── 0002_w.bmp
+    └── group_B/
+        ├── 0036_raw.bmp
+        └── 0036_w.bmp
+
+    Returns:
+        A list of dictionaries, where each dictionary contains
+        the info needed to run an attack job.
+    """
+    attack_jobs = []
+    
+    # Check if the main scan directory exists
+    if not os.path.exists(scan_dir):
+        print(f"Error: Scan directory '{scan_dir}' not found.")
+        return []
+
+    # Iterate through each item in the scan_dir (e.g., "group_A", "group_B")
+    for group_name in os.listdir(scan_dir):
+        group_path = os.path.join(scan_dir, group_name)
+        
+        # Make sure it's a directory (skip any stray files)
+        if not os.path.isdir(group_path):
+            continue
+        
+        # This is our ATTACKED_GROUP
+        # Now, find all the raw images in this group folder
+        for filename in os.listdir(group_path):
+            if filename.endswith("_raw.bmp"):
+                
+                # This is an original image. Let's find its pair.
+                
+                # 1. ORIGINAL_FILE_NAME
+                original_file_name = filename.replace("_raw.bmp", "")
+                
+                # 2. ORIGINAL_IMAGE_PATH
+                original_image_path = os.path.join(group_path, filename)
+                
+                # Construct the expected watermarked filename
+                watermarked_filename = f"{original_file_name}_w.bmp"
+                watermarked_image_path = os.path.join(group_path, watermarked_filename)
+                
+                # Check if the paired watermarked file actually exists
+                if os.path.exists(watermarked_image_path):
+                    
+                    output_dir = os.path.join(base_output_dir, group_name, original_file_name)
+                    
+                    # Store all 5 pieces of info in a dictionary
+                    job_info = {
+                        "original_image_path": original_image_path,
+                        "watermarked_image_path": watermarked_image_path,
+                        "original_file_name": original_file_name,
+                        "attacked_group": group_name,
+                        "output_dir": output_dir
+                    }
+                    attack_jobs.append(job_info)
+                
+                else:
+                    print(f"Warning: Found '{original_image_path}' but "
+                          f"missing its pair '{watermarked_filename}'")
+
+    return attack_jobs
+
+
 if __name__ == "__main__":
-    WORKERS = os.cpu_count()
-    if WORKERS is None:
-        WORKERS = 4
-
     SEARCH_DURATION_SECONDS = 30
+    MAIN_SCAN_DIR = "images_to_attack"
+    MAIN_OUTPUT_DIR = "output"
 
-    ORIGINAL_IMAGE_PATH = "input/0036.bmp"
-    WATERMARKED_IMAGE_PATH = "output/watermarked_image.bmp"
-    ORIGINAL_FILE_NAME = "0036"
-    ATTACKED_GROUP = "TEST"
-    OUTPUT_DIR = "output_0036"
+    WORKERS = os.cpu_count()
+    if WORKERS is None: WORKERS = 4
 
-    solutions = run_parallel_search(
-        ORIGINAL_IMAGE_PATH,
-        WATERMARKED_IMAGE_PATH,
-        ORIGINAL_FILE_NAME,
-        ATTACKED_GROUP,
-        OUTPUT_DIR,
-        WORKERS,
-        SEARCH_DURATION_SECONDS,
-    )
+    all_jobs = get_images_to_attack(MAIN_SCAN_DIR, MAIN_OUTPUT_DIR)
+    for i, job in enumerate(all_jobs):
+        solutions = run_parallel_search(
+                original_image_path=job['original_image_path'],
+                watermarked_image_path=job['watermarked_image_path'],
+                original_image_name=job['original_file_name'],
+                attacked_group=job['attacked_group'],
+                output_path=job['output_dir'],
+                num_workers=WORKERS,
+                search_duration_seconds=SEARCH_DURATION_SECONDS
+        )
 
-    save_solutions_csv(solutions, f"{OUTPUT_DIR}/results.csv")
+        save_solutions_csv(solutions, f"{job['output_dir']}/results_{job['original_file_name']}.csv")
