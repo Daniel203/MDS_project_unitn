@@ -7,6 +7,7 @@ from attacks import attacks
 from detection_ACME import detection
 from embedding import embedding
 from roc import roc
+from attack_workflow import attack_workflow
 
 INPUT_DIR = "input"
 """Folder containing images to use"""
@@ -30,11 +31,27 @@ def roc_curve():
     roc(images, np.load(WATERMARK_NAME))
 
 
+# def test_embedding():
+#     image_original = "path_to_original_image"
+#     watermark = "path_to_watermark"
+
+#     watermarked_image = embedding(image_original, watermark)
+
+# def test_embedding():
+#     image_original = "input/0036.bmp"
+#     watermark = "watermark.npy"
+
+#     watermarked_image = embedding(image_original, watermark)
+#     if watermarked_image is not None:
+#         cv2.imwrite("output/watermarked_image.bmp", watermarked_image)
+
 def test_embedding():
-    image_original = "path_to_original_image"
-    watermark = "path_to_watermark"
+    image_original = "input\\0036.bmp"
+    watermark = "acme.npy"
 
     watermarked_image = embedding(image_original, watermark)
+    if watermarked_image is not None:
+        cv2.imwrite("output\\watermarked_image.bmp", watermarked_image)
 
 
 def test_detection():
@@ -72,7 +89,8 @@ def test_attacks():
 
 
 if __name__ == "__main__":
-    roc_curve()
-    test_attacks()
-    test_embedding()
-    test_detection()
+    # roc_curve()
+    # test_attacks()
+    # test_embedding()
+    # test_detection()
+    attack_workflow()

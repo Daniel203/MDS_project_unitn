@@ -312,9 +312,10 @@ def get_images_to_attack(scan_dir="images_to_attack", base_output_dir="output"):
     return attack_jobs
 
 
-if __name__ == "__main__":
+# if __name__ == "__main__":
+def attack_workflow():
     SEARCH_DURATION_SECONDS = 30
-    MAIN_SCAN_DIR = "images_to_attack"
+    MAIN_SCAN_DIR = "input"
     MAIN_OUTPUT_DIR = "output"
 
     WORKERS = os.cpu_count()
