@@ -208,4 +208,5 @@ __marimo__/
 
 input/
 output/
+output*/
 !src/detection_ACME.pyc
