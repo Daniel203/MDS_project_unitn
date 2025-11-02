@@ -1,15 +1,16 @@
 from __future__ import annotations
 
+import importlib
 import multiprocessing as mp
 import os
 import queue
+import sys
 import time
 
 import cv2
 import numpy as np
 import pandas as pd
 
-import detection_ACME as detection
 from attacks import _awgn, _blur, _jpeg, _median, _resize, _sharpen
 
 
@@ -27,6 +28,17 @@ def attack_worker(
     It finds candidate solutions and puts them in the queue.
     """
     np.random.seed(os.getpid() + int(time.time()))
+
+    # Import detection function
+    module_name = f"detection_{attacked_group}"
+    try:
+        detection_module = importlib.import_module(module_name)
+    except ImportError:
+        print(f"[Worker {worker_id}] FATAL: Could not import module '{module_name}'.")
+        print(
+            f"[Worker {worker_id}] Please ensure 'detection_{attacked_group}.py' exists."
+        )
+        return  # This worker cannot function, so it exits.
 
     while True:
         image_to_attack = cv2.imread(watermarked_image, cv2.IMREAD_GRAYSCALE)
@@ -75,7 +87,7 @@ def attack_worker(
             attacked_image_path = f"{output_path}/worker_ACME_{attacked_group}_{original_image_name}_{worker_id}.bmp"
             cv2.imwrite(attacked_image_path, attacked_image)
 
-            detected, wpsnr = detection.detection(
+            detected, wpsnr = detection_module.detection(
                 original_image_path, watermarked_image, attacked_image_path
             )
 
@@ -326,8 +338,13 @@ def attack_workflow(
     if workers is None:
         workers = 4
 
+    # In order to find the modules also in the input folder (where we will put the detection encrypted files)
+    abs_input_dir = os.path.abspath("input")
+    if abs_input_dir not in sys.path:
+        sys.path.insert(0, abs_input_dir)
+
     all_jobs = get_images_to_attack(input_dir, output_dir)
-    for i, job in enumerate(all_jobs):
+    for _, job in enumerate(all_jobs):
         solutions = run_parallel_search(
             original_image_path=job["original_image_path"],
             watermarked_image_path=job["watermarked_image_path"],
