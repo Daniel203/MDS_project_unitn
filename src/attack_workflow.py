@@ -240,97 +240,104 @@ def save_solutions_csv(top_solutions, output_filename):
 
 def get_images_to_attack(scan_dir="images_to_attack", base_output_dir="output"):
     """
-    Scans a directory for subfolders (groups) and finds paired
-    raw and watermarked images within them.
+    Scans a flat directory for paired raw and watermarked images
+    based on a new naming convention.
 
     Assumes a file structure like:
     images_to_attack/
-    └── group_A/
-        ├── 0001_raw.bmp
-        ├── 0001_w.bmp
-        └── 0002_raw.bmp
-        └── 0002_w.bmp
-    └── group_B/
-        ├── 0036_raw.bmp
-        └── 0036_w.bmp
+    ├── 0001.bmp              (Raw)
+    ├── 0002.bmp              (Raw)
+    ├── group_A_0001.bmp      (Watermarked)
+    ├── group_A_0002.bmp      (Watermarked)
+    ├── 0036.bmp              (Raw)
+    └── TEST_0036.bmp         (Watermarked)
 
     Returns:
         A list of dictionaries, where each dictionary contains
         the info needed to run an attack job.
     """
+
     attack_jobs = []
-    
-    # Check if the main scan directory exists
+
     if not os.path.exists(scan_dir):
         print(f"Error: Scan directory '{scan_dir}' not found.")
         return []
 
-    # Iterate through each item in the scan_dir (e.g., "group_A", "group_B")
-    for group_name in os.listdir(scan_dir):
-        group_path = os.path.join(scan_dir, group_name)
-        
-        # Make sure it's a directory (skip any stray files)
-        if not os.path.isdir(group_path):
+    try:
+        all_files = os.listdir(scan_dir)
+    except Exception as e:
+        print(f"Error reading directory {scan_dir}: {e}")
+        return []
+
+    bmp_files = {f for f in all_files if f.endswith(".bmp")}
+
+    for filename in bmp_files:
+
+        # If the file has no underscore, it's a raw image.
+        # We start our logic from the watermarked file, so we skip it.
+        if "_" not in filename:
             continue
-        
-        # This is our ATTACKED_GROUP
-        # Now, find all the raw images in this group folder
-        for filename in os.listdir(group_path):
-            if filename.endswith("_raw.bmp"):
-                
-                # This is an original image. Let's find its pair.
-                
-                # 1. ORIGINAL_FILE_NAME
-                original_file_name = filename.replace("_raw.bmp", "")
-                
-                # 2. ORIGINAL_IMAGE_PATH
-                original_image_path = os.path.join(group_path, filename)
-                
-                # Construct the expected watermarked filename
-                watermarked_filename = f"{original_file_name}_w.bmp"
-                watermarked_image_path = os.path.join(group_path, watermarked_filename)
-                
-                # Check if the paired watermarked file actually exists
-                if os.path.exists(watermarked_image_path):
-                    
-                    output_dir = os.path.join(base_output_dir, group_name, original_file_name)
-                    
-                    # Store all 5 pieces of info in a dictionary
-                    job_info = {
-                        "original_image_path": original_image_path,
-                        "watermarked_image_path": watermarked_image_path,
-                        "original_file_name": original_file_name,
-                        "attacked_group": group_name,
-                        "output_dir": output_dir
-                    }
-                    attack_jobs.append(job_info)
-                
-                else:
-                    print(f"Warning: Found '{original_image_path}' but "
-                          f"missing its pair '{watermarked_filename}'")
+
+        try:
+            # --- THIS IS THE FIX ---
+            # Split at the *last* underscore
+            # "group_A_0001.bmp" -> ["group_A", "0001.bmp"]
+            parts = filename.rsplit("_", 1)
+
+            # This check ensures there was an underscore
+            if len(parts) != 2:
+                continue
+
+            attacked_group = parts[0]
+            original_filename_bmp = parts[1]  # e.g., "0001.bmp"
+
+            if original_filename_bmp in bmp_files:
+
+                # --- We found a valid pair! ---
+
+                original_image_path = os.path.join(scan_dir, original_filename_bmp)
+                watermarked_image_path = os.path.join(scan_dir, filename)
+                original_file_name = original_filename_bmp.replace(".bmp", "")
+
+                output_dir = os.path.join(
+                    base_output_dir, attacked_group, original_file_name
+                )
+
+                job_info = {
+                    "original_image_path": original_image_path,
+                    "watermarked_image_path": watermarked_image_path,
+                    "original_file_name": original_file_name,
+                    "attacked_group": attacked_group,
+                    "output_dir": output_dir,
+                }
+                attack_jobs.append(job_info)
+
+        except Exception as e:
+            # This handles any weird filenames that might break
+            print(f"Warning: Skipping file '{filename}'. Error: {e}")
 
     return attack_jobs
 
 
-# if __name__ == "__main__":
-def attack_workflow():
-    SEARCH_DURATION_SECONDS = 30
-    MAIN_SCAN_DIR = "input"
-    MAIN_OUTPUT_DIR = "output"
+def attack_workflow(
+    duration_in_seconds: int = 60, input_dir: str = "input", output_dir: str = "output"
+):
+    workers = os.cpu_count()
+    if workers is None:
+        workers = 4
 
-    WORKERS = os.cpu_count()
-    if WORKERS is None: WORKERS = 4
-
-    all_jobs = get_images_to_attack(MAIN_SCAN_DIR, MAIN_OUTPUT_DIR)
+    all_jobs = get_images_to_attack(input_dir, output_dir)
     for i, job in enumerate(all_jobs):
         solutions = run_parallel_search(
-                original_image_path=job['original_image_path'],
-                watermarked_image_path=job['watermarked_image_path'],
-                original_image_name=job['original_file_name'],
-                attacked_group=job['attacked_group'],
-                output_path=job['output_dir'],
-                num_workers=WORKERS,
-                search_duration_seconds=SEARCH_DURATION_SECONDS
+            original_image_path=job["original_image_path"],
+            watermarked_image_path=job["watermarked_image_path"],
+            original_image_name=job["original_file_name"],
+            attacked_group=job["attacked_group"],
+            output_path=job["output_dir"],
+            num_workers=workers,
+            search_duration_seconds=duration_in_seconds,
         )
 
-        save_solutions_csv(solutions, f"{job['output_dir']}/results_{job['original_file_name']}.csv")
+        save_solutions_csv(
+            solutions, f"{job['output_dir']}/results_{job['original_file_name']}.csv"
+        )
