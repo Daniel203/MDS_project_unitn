@@ -8,6 +8,7 @@ from attacks import attacks
 from detection_ACME import detection
 from embedding import embedding
 from roc import roc
+import wpsnr
 
 INPUT_DIR = "input"
 """Folder containing images to use"""
@@ -109,7 +110,11 @@ def embedding_for_challenge(images_to_embed: list[str], gorup_name: str):
         watermarked_image = embedding(image, WATERMARK_NAME)
         if watermarked_image is not None:
             image_name = image.split("/")[-1]
-            cv2.imwrite(f"{output_folder}/{group_name}_{image_name}", watermarked_image)
+            original_image = cv2.imread(image, cv2.IMREAD_GRAYSCALE)
+            watermarked_image_path  = f"{output_folder}/{group_name}_{image_name}"
+            cv2.imwrite(watermarked_image_path, watermarked_image)
+            wpsnr_value = wpsnr.wpsnr(original_image, watermarked_image)
+            print(f"WPSNR {image_name} = {wpsnr_value}")
 
 
 if __name__ == "__main__":
